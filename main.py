@@ -22,18 +22,18 @@ if __name__ == '__main__':
     visual_n = 2
     hidden_n = 5
     precision = torch.float64
-    device = torch.device('cuda:0')
+    device = None #torch.device('cuda:0')
 
     init_model = model.set_up_model(visual_n, hidden_n, precision=precision, device=device, W_scale=0.1)
     
-    eps = 0.2
-    v = 1
+    eps = 1
+    v = 0.2
     W = 0
     H = torch.tensor([[eps, 0, -v], [0, 0, 0], [-v, 0, -eps]], dtype=precision, device=device)
     eigvals = torch.real(torch.linalg.eigvals(H))  
     min_eigval = torch.min(eigvals)
     
-    epochs = 4000
+    epochs = 500
     learning_rate = 1
     cycles = 100000
     k = 3
