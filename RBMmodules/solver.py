@@ -27,13 +27,13 @@ def gibbs_update(input, visual_bias, hidden_bias, W, k):
     
     return hidden_k, visual_k
 
-def MonteCarlo(cycles, local_energy_func, gibbs_k, model, uniform_s):
+def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
     
-    visual_n = model.visual_bias.size(dim=0)
-    hidden_n = model.hidden_bias.size(dim=0)
     vb = model.visual_bias
     hb = model.hidden_bias
     W = model.weights
+    visual_n = vb.size(dim=0)
+    hidden_n = hb.size(dim=0)
     p_visual = partial(sample_visual, visual_bias=vb, W=W)
     p_hidden = partial(sample_hidden, hidden_bias=hb, W=W)
     p_gibbs = partial(gibbs_update, visual_bias=vb, hidden_bias=hb, W=W, k=gibbs_k)
@@ -41,20 +41,18 @@ def MonteCarlo(cycles, local_energy_func, gibbs_k, model, uniform_s):
     hidden = torch.bernoulli(torch.rand(cycles, hidden_n, dtype=model.precision, device=model.device))
     _, samples = p_visual(hidden)
     hidden, dist_s = p_gibbs(samples)
-    
-    probs = net_Energy(dist_s, vb, hidden, hb, W)
 
-    dPsidvb = 0.5*(dist_s - vb)
-    dPsidhb = 0.5/(2*(hidden + 1))
-    dPsidW = 0.5*torch.matmul(dist_s[:, :, None], dPsidhb[:, None, :])
+    dPsidvb = (dist_s - vb)
+    dPsidhb = 1/(torch.exp(-hb-dist_s@W)+ 1)
+    dPsidW = dist_s[:, :, None]*dPsidhb[:, None, :]
     
-    uniform_s = torch.bernoulli(torch.rand(cycles, visual_n, dtype=model.precision, device=model.device))
-    E_local = local_energy_func(dist_s, uniform_s)
+    E_local = local_energy_func(dist_s)
     E_mean = torch.mean(E_local)
+    E_diff = E_local - E_mean
 
-    DeltaVB = torch.mean((E_local*dPsidvb.T).T, axis=0) - E_mean*torch.mean(dPsidvb, axis=0)
-    DeltaHB = torch.mean((E_local*dPsidhb.T).T, axis=0) - E_mean*torch.mean(dPsidhb, axis=0)
-    DeltaW = torch.mean((E_local*dPsidW.T).T, axis=0) - E_mean*torch.mean(dPsidW, axis=0)
+    DeltaVB = torch.mean(E_diff[:, None]*dPsidvb, axis=0)
+    DeltaHB = torch.mean(E_diff[:, None]*dPsidhb, axis=0)
+    DeltaW = torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
 
     dE = torch.mean(E_local - E_mean)
     stats = {'E_mean' : E_mean,
@@ -68,11 +66,14 @@ def find_min_energy(model, local_energy_func, cycles, gibbs_k, epochs, learning_
                     'dE' : torch.zeros(epochs),
                     'Dist' : []}
     visual_n = model.visual_bias.size(dim=0)
-    uniform_s = torch.bernoulli(torch.rand(cycles, visual_n, dtype=model.precision, device=model.device))
+    # uniform_s = torch.bernoulli(torch.rand(cycles, visual_n, dtype=model.precision, device=model.device))
     #uniform_s = torch.tensor([[0,0]], dtype=model.precision, device=model.device)
     for n in tqdm(range(epochs)):
         #print('--------------', n, '-------------------')
-        DeltaVB, DeltaHB, DeltaW, stats = MonteCarlo(cycles, local_energy_func, gibbs_k, model, uniform_s)
+        #hidden = torch.bernoulli(torch.rand(cycles, model.hidden_bias.shape[0], dtype=model.precision, device=model.device))
+        #hidden_g, visual_g = gibbs_update(sample_visual(hidden, model.visual_bias, model.weights)[1], model.visual_bias, model.hidden_bias, model.weights, gibbs_k)
+        #visual_g = hidden = torch.bernoulli(torch.rand(cycles, model.visual_bias.shape[0], dtype=model.precision, device=model.device))
+        DeltaVB, DeltaHB, DeltaW, stats = MonteCarlo(cycles, local_energy_func, gibbs_k, model)
 
         for key, stat in stats.items():
             stats_array[key][n] = stat
@@ -83,10 +84,10 @@ def find_min_energy(model, local_energy_func, cycles, gibbs_k, epochs, learning_
     
     N_test = 100000
     hidden = torch.bernoulli(torch.rand(N_test, model.hidden_bias.shape[0], dtype=model.precision, device=model.device))
-    all_states = torch.tensor([[0,0],[0,1],[1,0],[1,1]], dtype=model.precision, device=model.device)
+    import itertools
+    all_states = torch.tensor(list(itertools.product([0, 1], repeat=visual_n)), dtype=model.precision, device=model.device)
     hidden_g, visual_g = gibbs_update(sample_visual(hidden, model.visual_bias, model.weights)[1], 
-                                      model.visual_bias, model.hidden_bias, model.weights, 100)
-    
+                                      model.visual_bias, model.hidden_bias, model.weights, gibbs_k)
     for state in all_states:
         stats_array['Dist'].append(torch.sum(torch.all(visual_g==state, dim=1)).item()/N_test)
 
