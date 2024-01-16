@@ -3,20 +3,20 @@ import numpy as np
 #import netket as nk
 #from netket.operator.spin import sigmax,sigmaz
 
-def lipkin_local(dist_s, eps, V, W):
+def lipkin_local(samples, eps, V, W):
 
-    size = dist_s.shape[0]
-    unique, weight = torch.unique(dist_s, dim=0, return_counts=True)
+    size = samples.shape[0]
+    unique, weight = torch.unique(samples, dim=0, return_counts=True)
     weight = torch.sqrt(weight/size)
-    mask_u = torch.where(torch.all(dist_s[:, None] == unique, dim = -1))[1]
+    mask = torch.where(torch.all(samples[:, None] == unique, dim = -1))[1]
     
     H_0 = 0.5*eps*(torch.sum(unique == 1, dim=-1)- torch.sum(unique == 0, dim = -1))
     H_1 = V*torch.sum(weight[:, None]*(abs(torch.sum((unique[:, None] - unique), dim=-1)) == 2), dim=0)/weight
-    E = (H_0[mask_u] - H_1[mask_u])
+    E = (H_0[mask] - H_1[mask])
     return E
 
-def ising_local(dist_s, uniform_s, J, L):
-    pm = 2*dist_s - 1
+def ising_local(samples, uniform_s, J, L):
+    pm = 2*samples - 1
     shift = torch.roll(pm, 1)
     H_J = J*torch.sum(shift*pm, dim=1)
     H_L = L*torch.sum(pm, dim=1)
