@@ -3,24 +3,6 @@ import numpy as np
 #import netket as nk
 #from netket.operator.spin import sigmax,sigmaz
 
-def pairs(N):
-    return N*(N-1)/2
-
-
-# def lipkin_local(dist_s, eps, V, W):
-
-#     shuffle = dist_s[torch.randperm(dist_s.shape[0])]
-#     H = torch.zeros_like(dist_s[:, 0])
-    
-#     mask_0 = torch.where(torch.all(dist_s == shuffle, dim=1))
-#     H[mask_0] = 0.5*eps*(torch.sum(dist_s[mask_0] == 1, dim=1) - torch.sum(dist_s[mask_0] == 0, dim=1)).to(dtype=torch.float64)
-    
-#     mask_1 = torch.where(abs(torch.sum(dist_s-shuffle, dim=-1)) == 2)
-#     H[mask_1] = -V
-    
-#     return H
-
-
 def lipkin_local(dist_s, eps, V, W):
 
     size = dist_s.shape[0]
