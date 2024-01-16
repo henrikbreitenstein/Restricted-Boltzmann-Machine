@@ -11,8 +11,15 @@ def lipkin_local(samples, eps, V, W):
     mask = torch.where(torch.all(samples[:, None] == unique, dim = -1))[1]
     
     H_0 = 0.5*eps*(torch.sum(unique == 1, dim=-1)- torch.sum(unique == 0, dim = -1))
+    H_eps = H_0[mask]
+    
     H_1 = V*torch.sum(weight[:, None]*(abs(torch.sum((unique[:, None] - unique), dim=-1)) == 2), dim=0)/weight
-    E = (H_0[mask] - H_1[mask])
+    H_V = H_1[mask]
+    
+    H_2 = W*torch.sum(weight[:, None]*(abs(torch.sum((unique[:, None] - unique), dim=-1)) == 1) , dim=0)/weight
+    H_W = H_2[mask]
+    
+    E = (H_eps - H_V - H_W)
     return E
 
 def ising_local(samples, uniform_s, J, L):
