@@ -3,7 +3,7 @@ import numpy as np
 #import netket as nk
 #from netket.operator.spin import sigmax,sigmaz
 
-def lipkin_local(samples, eps, V, W):
+def lipkin_local(eps, V, W, samples):
 
     size = samples.shape[0]
     unique, weight = torch.unique(samples, dim=0, return_counts=True)

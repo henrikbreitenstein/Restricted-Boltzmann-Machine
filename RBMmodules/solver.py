@@ -56,15 +56,17 @@ def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
 
     dE = torch.mean(E_local - E_mean)
     stats = {'E_mean' : E_mean,
-            'dE' : dE}
+            'dE'      : dE,
+            'std'     : torch.std(E_local)}
     
     return DeltaVB, DeltaHB, DeltaW, stats
 
 def find_min_energy(model, local_energy_func, cycles, gibbs_k, epochs, learning_rate):
 
     stats_array = {'E_mean' : torch.zeros(epochs),
-                    'dE' : torch.zeros(epochs),
-                    'Dist' : []}
+                   'dE'     : torch.zeros(epochs),
+                   'std'    : torch.zeros(epochs),
+                   'Dist'   : []}
     visual_n = model.visual_bias.size(dim=0)
     # uniform_s = torch.bernoulli(torch.rand(cycles, visual_n, dtype=model.precision, device=model.device))
     #uniform_s = torch.tensor([[0,0]], dtype=model.precision, device=model.device)

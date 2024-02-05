@@ -1,23 +1,56 @@
+from numpy import save
+import pandas as pd
+import pickle
 import os
 
-def create_log_file(model):
-    
-    log = ''
-    for element in model:
-        log += f'{element.name} : {element}'
+def save_to_dest(to_save : dict, folder : str, name : str):
+    with open(folder + '/' + name, 'wb+') as fb:
+        pickle.dump(to_save, fb)
 
-    return log
+def learning_process(
+    model_options : dict,
+    model_layers : dict,
+    machine_options : dict,
+    run_options : dict,
+    result : dict,
+    run_name : str,
+    ) -> str:
 
-def log_model(run_name, model):
-    os.mkdir(f'./run_logs/{run_name}')
+    file_name = f"{model_options['name']}/"
+    for key, value in model_options["args"].items():
+        if key != file_name:
+            file_name += f"[{key}={value:.1g}]"
+    file_name += f"[n={machine_options['visual_n']}]"
+    file_name += f"[hn={machine_options['hidden_n']}]"
+    file_name += f"[e={run_options['epochs']}]"
+    file_name += f"[m={run_options['monte_carlo']['type']}]"
+    file_name += f"[c={run_options['monte_carlo']['cycles']}]"
 
-    log_name = f'./run_logs/{run_name}/{run_name}_log.txt'
 
-    with open(log_name, 'w+') as f:
-        f.write(create_log_file(model))
-    
-    model_arrays = [model.visual_bias, model.hidden_bias, model.W]
-    for array in model_arrays:
-        save(array)
+    folder_path = 'Results/' + run_name + r'/' + file_name
+    try:
+        os.mkdir(folder_path)
+    except FileExistsError:
+        pass
+
+    save_to_dest(run_options, folder_path, "run_options")
+    save_to_dest(result, folder_path, "result")
+    save_to_dest(model_options, folder_path, "model_options")
+    save_to_dest(model_layers, folder_path, "model_layers")
+    save_to_dest(machine_options, folder_path, "machine_options")
+
+    return folder_path
+
+def load_learning_process(path : str):
+
+    loaded = {}
+
+    for file in os.listdir(path):
+        with open(f"{path}/{file}", "rb") as fb:
+            exec(f"{file} = pickle.load(fb)")
+        exec(f"loaded['{file}'] = {file}")
+
+    return loaded
+
 
 
