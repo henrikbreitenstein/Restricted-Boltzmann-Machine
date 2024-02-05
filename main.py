@@ -1,9 +1,71 @@
+from typing import Any
 import torch
 import warnings
 import matplotlib.pyplot as plt
 from functools import partial
-from RBMmodules import model, solver, analysis, hamiltonian
+from RBMmodules import model, solver, analysis, hamiltonian, logger
 warnings.filterwarnings("ignore", category=UserWarning)
+
+def nop():
+    pass
+
+def run(
+    model_options   : dict[str, Any],
+    machine_options : dict[str, Any],
+    run_options     : dict[str, Any],
+    run_name        : str = ""
+    ) -> str:
+
+    vn        = machine_options["visual_n"]
+    hn        = machine_options["hidden_n"]
+    precision = machine_options["precision"]
+    device    = machine_options["device"]
+
+    machine_initialize = model.set_up_model(
+        vn,
+        hn,
+        precision=precision,
+        device=device,
+        W_scale=0.1
+    )
+
+    epochs            = run_options["epochs"]
+    learning_rate     = run_options["learning_rate"]
+    adaptive_function = run_options["adaptive_function"]
+    cycles            = run_options["monte_carlo"]["cycles"]
+    monte_carlo       = run_options["monte_carlo"]["type"]
+
+    local_energy = partial(
+        model_options["hamiltonian"],
+        *model_options["args"].values()
+    )
+
+    result = solver.find_min_energy(
+        machine_initialize,
+        local_energy,
+        cycles,
+        monte_carlo,
+        epochs,
+        learning_rate,
+        #adaptive_function
+    )
+
+    machine_layers = {
+        "visual"  : machine_initialize.visual_bias,
+        "hidden"  : machine_initialize.hidden_bias,
+        "weights" : machine_initialize.weights
+    }
+
+    saved_path = logger.learning_process(
+        model_options,
+        machine_layers,
+        machine_options,
+        run_options,
+        result,
+        run_name
+    )
+
+    return saved_path
 
 if __name__ == '__main__':
 
@@ -42,5 +104,5 @@ if __name__ == '__main__':
     print(stats['Dist'])
 
     analysis.plot_energy(epochs, stats['E_mean'])
-    plt.title('$\left < E \\right > $')
+    plt.title(r'$\left < E \right > $')
     plt.show()
