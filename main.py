@@ -89,7 +89,7 @@ if __name__ == '__main__':
     cycles = 100000
     k = 3
     
-    local_energy = partial(hamiltonian.lipkin_local, eps=eps, V=V, W=W)
+    local_energy = partial(hamiltonian.lipkin_local, eps, V, W)
     # local_energy = partial(hamiltonian.ising_local, J=-0.5, L=-1)
     # print(f"Ising: {hamiltonian.ising_true(visual_n, -0.5, -1)}")
     

@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import seaborn as sns
 import numpy as np
-import re
+import regex
+import sys
+
+sys.path.append('../RBMmodules')
 
 from RBMmodules import  logger, analysis
 params = {

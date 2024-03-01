@@ -1,9 +1,15 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
+import sys
+import os
 
-from RBMmodules import hamiltonian
+sys.path.append('../RBMmodules')
+
+dir = os.path.dirname(os.path.abspath(__file__))
+parent = os.path.dirname(dir)
+sys.path.append(dir)
+
 import main
+from RBMmodules import hamiltonian
 
 models = {
     "Lipkin"     : {
