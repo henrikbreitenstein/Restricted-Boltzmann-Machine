@@ -27,7 +27,7 @@ def learning_process(
     file_name += f"[c={run_options['monte_carlo']['cycles']}]"
 
 
-    folder_path = 'Results/' + run_name + r'/' + file_name
+    folder_path = '../Results/' + run_name + r'/' + file_name
     try:
         os.mkdir(folder_path)
     except FileExistsError:

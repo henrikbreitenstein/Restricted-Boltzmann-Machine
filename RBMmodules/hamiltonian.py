@@ -1,5 +1,4 @@
 import torch
-import numpy as np
 #import netket as nk
 #from netket.operator.spin import sigmax,sigmaz
 
@@ -13,13 +12,13 @@ def lipkin_local(eps, V, W, samples):
     N_0 = torch.sum(unique == 0, dim=-1)
     N_1 = torch.sum(unique == 1, dim=-1)
 
-    diff_unique = abs(torch.sum(unique[:, None] - unique), dim=-1)
+    diff_unique = abs(torch.sum(unique[:, None] - unique, dim=-1))
     diff_N1 = abs(N_1[:, None] - N_1)
 
     H_0 = 0.5*eps*(N_1-N_0)
     H_eps = H_0[mask]
     
-    one_pair = np.bitwise_and(diff_unique==2, diff_N1==2)
+    one_pair = torch.bitwise_and(diff_unique==2, diff_N1==2)
     H_1 = V*torch.sum(weight[:, None]*one_pair, dim=0)/weight
     H_V = H_1[mask]
     

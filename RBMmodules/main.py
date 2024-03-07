@@ -2,8 +2,8 @@ from typing import Any
 import torch
 import warnings
 import matplotlib.pyplot as plt
+import model, solver, analysis, hamiltonian, logger
 from functools import partial
-from RBMmodules import model, solver, analysis, hamiltonian, logger
 warnings.filterwarnings("ignore", category=UserWarning)
 
 def nop():
