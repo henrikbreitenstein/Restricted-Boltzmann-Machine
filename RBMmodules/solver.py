@@ -27,7 +27,7 @@ def gibbs_update(input, visual_bias, hidden_bias, W, k):
     
     return hidden_k, visual_k
 
-def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
+def MonteCarlo(cycles, local_energy_func, gibbs_k, model, var_mean_ratio):
     
     vb = model.visual_bias
     hb = model.hidden_bias
@@ -38,9 +38,23 @@ def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
     p_hidden = partial(sample_hidden, hidden_bias=hb, W=W)
     p_gibbs = partial(gibbs_update, visual_bias=vb, hidden_bias=hb, W=W, k=gibbs_k)
 
-    hidden = torch.bernoulli(torch.rand(cycles, hidden_n, dtype=model.precision, device=model.device))
+    hidden = torch.bernoulli(torch.rand(
+        cycles, 
+        hidden_n, 
+        dtype=model.precision, 
+        device=model.device
+    ))
+    
     _, samples = p_visual(hidden)
     hidden, dist_s = p_gibbs(samples)
+    
+   # uniform_n = int(cycles*var_mean_ratio)
+   # dist_s[0:uniform_n] = torch.bernoulli(torch.rand(
+   #     uniform_n,
+   #     visual_n,
+   #     dtype=model.precision,
+   #     device=model.device
+   # ))
 
     dPsidvb = (dist_s - vb)
     dPsidhb = 1/(torch.exp(-hb-dist_s@W)+ 1)
@@ -57,32 +71,52 @@ def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
     dE = torch.mean(E_local - E_mean)
     stats = {'E_mean' : E_mean,
             'dE'      : dE,
-            'std'     : torch.std(E_local)}
+            'variance': torch.var(E_local)}
     
     return DeltaVB, DeltaHB, DeltaW, stats
 
-def find_min_energy(model, local_energy_func, cycles, gibbs_k, epochs, learning_rate):
+def find_min_energy(
+    model,
+    local_energy_func,
+    cycles,
+    gibbs_k,
+    epochs,
+    learning_rate,
+    adapt_func):
 
-    stats_array = {'E_mean' : torch.zeros(epochs),
-                   'dE'     : torch.zeros(epochs),
-                   'std'    : torch.zeros(epochs),
-                   'Dist'   : []}
+    stats_array = {'E_mean'   : torch.zeros(epochs),
+                   'dE'       : torch.zeros(epochs),
+                   'variance' : torch.zeros(epochs),
+                   'Dist'     : []}
     visual_n = model.visual_bias.size(dim=0)
-    # uniform_s = torch.bernoulli(torch.rand(cycles, visual_n, dtype=model.precision, device=model.device))
-    #uniform_s = torch.tensor([[0,0]], dtype=model.precision, device=model.device)
-    for n in tqdm(range(epochs)):
-        #print('--------------', n, '-------------------')
-        #hidden = torch.bernoulli(torch.rand(cycles, model.hidden_bias.shape[0], dtype=model.precision, device=model.device))
-        #hidden_g, visual_g = gibbs_update(sample_visual(hidden, model.visual_bias, model.weights)[1], model.visual_bias, model.hidden_bias, model.weights, gibbs_k)
-        #visual_g = hidden = torch.bernoulli(torch.rand(cycles, model.visual_bias.shape[0], dtype=model.precision, device=model.device))
-        DeltaVB, DeltaHB, DeltaW, stats = MonteCarlo(cycles, local_energy_func, gibbs_k, model)
+    var_mean_ratio = 0
 
+    for n in tqdm(range(epochs)):
+        DeltaVB, DeltaHB, DeltaW, stats = MonteCarlo(
+            cycles, 
+            local_energy_func, 
+            gibbs_k, 
+            model, 
+            var_mean_ratio
+        )
+
+        var_mean_ratio = min(0.1, abs((stats['variance']/stats['E_mean']).item()))*(1-n/epochs)**2
+
+        if n/epochs > 0.5:
+            var_mean_ratio = 0
+        
         for key, stat in stats.items():
             stats_array[key][n] = stat
+        
+        adapt_lr = adapt_func(
+            learning_rate = learning_rate,
+            epochs        = epochs,
+            n             = n,
+        )
 
-        model.visual_bias -= learning_rate*DeltaVB
-        model.hidden_bias -= learning_rate*DeltaHB
-        model.weights -= learning_rate*DeltaW
+        model.visual_bias -= adapt_lr*DeltaVB
+        model.hidden_bias -= adapt_lr*DeltaHB
+        model.weights -= adapt_lr*DeltaW
     
     N_test = 100000
     hidden = torch.bernoulli(torch.rand(N_test, model.hidden_bias.shape[0], dtype=model.precision, device=model.device))

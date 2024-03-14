@@ -1,28 +1,20 @@
 import torch
+import numpy as np
 import sys
 import matplotlib.pyplot as plt
 
 sys.path.append('../')
 sys.path.append('../RBMmodules')
-from RBMmodules import hamiltonian, main, analysis, logger
+from RBMmodules import hamiltonian, main, adaptives
 
-model_options = {
-    "name" : "Lipkin",
-    "hamiltonian" : hamiltonian.lipkin_local,
-    "args" : {
-        "eps" : 1,
-        "V"   : 1,
-        "W"   : 0
-    }
-}
 run_options = {
-    "epochs"      : 500,
+    "epochs"      : 5000,
     "monte_carlo" : {
-        "type"   : 5,
-        "cycles" : 10_000
+        "type"   : 3,
+        "cycles" : 500_000
     },
-    "learning_rate"     : 0.5,
-    "adaptive_function" : None
+    "learning_rate"     : 2,
+    "adaptive_function" : adaptives.deminishing_linear
     }
 
 n_particles = 2
@@ -33,19 +25,35 @@ machine_options = {
     "device" : torch.device('cuda')
 }
 
-result_path = main.run(
-    model_options,
-    machine_options,
-    run_options,
-    "hamiltonian_tests/runs"
-)
-
-run = logger.load_learning_process(result_path)
-fig = analysis.plot_energy(
-    run_options["epochs"],
-    run["result"]["E_mean"]
-)
-
+N = 10
+V_range = np.linspace(0, 1, N)
+est_energy = np.zeros(N)
+true_energy = np.zeros(N)
+for i in range(N):
+    model_options = {
+        "name" : "Lipkin",
+        "hamiltonian" : hamiltonian.lipkin_local,
+        "args" : {
+            "eps" : 1,
+            "V"   : V_range[i],
+            "W"   : 0
+        }
+    }
+    result = main.run(
+        model_options,
+        machine_options,
+        run_options,
+        "hamiltonian_tests/runs",
+        log = False
+    )
+    est_energy[i] = result["E_mean"][-1]
+    true_energy[i] = hamiltonian.lipkin_true(
+        n_particles,
+        model_options['args']['eps'],
+        model_options['args']['V']
+    )
+plt.plot(V_range, est_energy)
+plt.plot(V_range, true_energy)
 plt.show()
 
 

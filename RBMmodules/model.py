@@ -6,18 +6,18 @@ def get_tensortype(device, dtype):
     if device:
         if (dtype == torch.float64) or (dtype==torch.double):
             return torch.cuda.DoubleTensor
-        elif (dtype == torch.float64) or (dtype==torch.double):
+        elif (dtype == torch.float32) or (dtype==torch.float):
             return torch.cuda.FloatTensor
-        elif (dtype == torch.float64) or (dtype==torch.double):
+        elif (dtype == torch.float16) or (dtype==torch.half):
             return torch.cuda.HalfTensor     
         else:
             return None
     else:
         if (dtype == torch.float64) or (dtype==torch.double):
             return torch.DoubleTensor
-        elif (dtype == torch.float64) or (dtype==torch.double):
+        elif (dtype == torch.float32) or (dtype==torch.float):
             return torch.FloatTensor
-        elif (dtype == torch.float64) or (dtype==torch.double):
+        elif (dtype == torch.float16) or (dtype==torch.half):
             return torch.HalfTensor     
         else:
             return None

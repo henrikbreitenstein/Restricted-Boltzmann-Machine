@@ -1,28 +1,74 @@
 import torch
-#import netket as nk
-#from netket.operator.spin import sigmax,sigmaz
+import numpy as np
+import itertools
+
+def dd(a, b):
+    if a==b:
+        return 1
+    else:
+        return 0
+
+def construct_spin(S):
+
+    size = int(2*S + 1)
+    J_pluss = np.zeros((size, size))
+    J_minus = np.zeros((size, size))
+    J_z = np.zeros((size, size))
+
+    for i in range(size):
+        for k in range(size):
+            m = i-S
+            n = k-S
+
+            pm_factor = np.sqrt(S*(S+1) -m*n)
+
+            J_pluss[i, k] = dd(m, n+1)*pm_factor
+            J_minus[i, k] = dd(m+1, n)*pm_factor
+            J_z[i, k] = dd(m,n)*m
+    
+    return J_z, J_pluss, J_minus
+
+def construct_lipkin(S, eps, V):
+    
+    J_z, J_pluss, J_minus = construct_spin(S)
+
+    H = eps*J_z - 1/2*V*(J_pluss@J_pluss + J_minus@J_minus)
+
+    return H
+
+def lipkin_true(n, eps, V):
+    H = torch.tensor(construct_lipkin(n/2, eps, V))
+    eigvals = torch.real(torch.linalg.eigvals(H))
+    min_eigval = torch.min(eigvals)
+    return min_eigval
 
 def lipkin_local(eps, V, W, samples):
 
     size = samples.shape[0]
-    unique, weight = torch.unique(samples, dim=0, return_counts=True)
-    weight = torch.sqrt(weight/size)
+    unique = torch.tensor(
+        list(itertools.product([0, 1], repeat=samples[0].shape[0])),
+        dtype = samples.dtype,
+        device= samples.device
+    )
+    weight = torch.sum(torch.all(samples[:, None] == unique, dim = -1), dim=0)
+    div_weight = weight
+    div_weight[weight==0] = 1
+   # unique, weight = torch.unique(samples, dim=0, return_counts=True)
+   # weight = torch.sqrt(weight/size)
     mask = torch.where(torch.all(samples[:, None] == unique, dim = -1))[1]
     
     N_0 = torch.sum(unique == 0, dim=-1)
     N_1 = torch.sum(unique == 1, dim=-1)
 
-    diff_unique = abs(torch.sum(unique[:, None] - unique, dim=-1))
-    diff_N1 = abs(N_1[:, None] - N_1)
+    diff_unique = torch.sum(torch.logical_xor(unique[:, None], unique), dim=-1)
 
     H_0 = 0.5*eps*(N_1-N_0)
     H_eps = H_0[mask]
     
-    one_pair = torch.bitwise_and(diff_unique==2, diff_N1==2)
-    H_1 = V*torch.sum(weight[:, None]*one_pair, dim=0)/weight
+    H_1 = V*torch.sum(weight[:, None]*(diff_unique == 2), dim=0)/div_weight
     H_V = H_1[mask]
     
-    H_2 = W*torch.sum(weight[:, None]*(diff_unique == 1), dim=0)/weight
+    H_2 = W*torch.sum(weight[:, None]*(diff_unique == 1), dim=0)/div_weight
     H_W = H_2[mask]
     
     E = (H_eps - H_V - H_W)

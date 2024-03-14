@@ -1,4 +1,5 @@
-from typing import Any
+from typing import Any, Union
+from numpy._typing import _UnknownType
 import torch
 import warnings
 import matplotlib.pyplot as plt
@@ -13,8 +14,9 @@ def run(
     model_options   : dict[str, Any],
     machine_options : dict[str, Any],
     run_options     : dict[str, Any],
-    run_name        : str = ""
-    ) -> str:
+    run_name        : str = "",
+    log             : bool = True,
+    ) -> Union[str, dict[str, _UnknownType]]:
 
     vn        = machine_options["visual_n"]
     hn        = machine_options["hidden_n"]
@@ -47,7 +49,7 @@ def run(
         monte_carlo,
         epochs,
         learning_rate,
-        #adaptive_function
+        adaptive_function
     )
 
     machine_layers = {
@@ -55,17 +57,20 @@ def run(
         "hidden"  : machine_initialize.hidden_bias,
         "weights" : machine_initialize.weights
     }
+    
+    if log == True:
+        saved_path = logger.learning_process(
+            model_options,
+            machine_layers,
+            machine_options,
+            run_options,
+            result,
+            run_name
+        )
+        return saved_path
+    else:
+        return result
 
-    saved_path = logger.learning_process(
-        model_options,
-        machine_layers,
-        machine_options,
-        run_options,
-        result,
-        run_name
-    )
-
-    return saved_path
 
 if __name__ == '__main__':
 
