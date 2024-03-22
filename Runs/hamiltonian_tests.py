@@ -8,10 +8,10 @@ sys.path.append('../RBMmodules')
 from RBMmodules import hamiltonian, main, adaptives
 
 run_options = {
-    "epochs"      : 5000,
+    "epochs"      : 1000,
     "monte_carlo" : {
         "type"   : 3,
-        "cycles" : 500_000
+        "cycles" : 100_000
     },
     "learning_rate"     : 2,
     "adaptive_function" : adaptives.deminishing_linear
@@ -25,7 +25,7 @@ machine_options = {
     "device" : torch.device('cuda')
 }
 
-N = 10
+N = 5
 V_range = np.linspace(0, 1, N)
 est_energy = np.zeros(N)
 true_energy = np.zeros(N)

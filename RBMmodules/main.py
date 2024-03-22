@@ -39,7 +39,8 @@ def run(
 
     local_energy = partial(
         model_options["hamiltonian"],
-        *model_options["args"].values()
+        *model_options["args"].values(),
+        basis=hamiltonian.create_basis(vn, precision, device)
     )
 
     result = solver.find_min_energy(
