@@ -27,16 +27,33 @@ def gibbs_update(input, visual_bias, hidden_bias, W, k):
     
     return hidden_k, visual_k
 
-def MonteCarlo(cycles, local_energy_func, gibbs_k, model, var_mean_ratio):
+def metropolis_hastings(input, visual_bias, hidden_bias, W):
+    
+    size = input.size(dim=0)
+    given_h, hidden = sample_hidden(input, hidden_bias, W)
+    rand_nums = torch.rand(size)
+    previous = input[0]
+    for i in range(input.size(dim=0)):
+        acc_ratio = net_Energy(input[i], visual_bias, hidden, hidden_bias, W)
+        if acc_ratio <= rand_nums[i]:
+            input[i] = previous
+        previous = input[i]
+
+    return input
+
+def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
     
     vb = model.visual_bias
     hb = model.hidden_bias
     W = model.weights
-    visual_n = vb.size(dim=0)
+
     hidden_n = hb.size(dim=0)
     p_visual = partial(sample_visual, visual_bias=vb, W=W)
-    p_hidden = partial(sample_hidden, hidden_bias=hb, W=W)
-    p_gibbs = partial(gibbs_update, visual_bias=vb, hidden_bias=hb, W=W, k=gibbs_k)
+
+    if k == 0:
+        p_sampler = partial(metropolis_hastings, visual_bias=vb, hidden_bias=hb, W=W)
+    else:
+        p_sampler = partial(gibbs_update, visual_bias=vb, hidden_bias=hb, W=W, k=gibbs_k)
 
     hidden = torch.bernoulli(torch.rand(
         cycles, 
@@ -46,15 +63,7 @@ def MonteCarlo(cycles, local_energy_func, gibbs_k, model, var_mean_ratio):
     ))
     
     _, samples = p_visual(hidden)
-    hidden, dist_s = p_gibbs(samples)
-    
-   # uniform_n = int(cycles*var_mean_ratio)
-   # dist_s[0:uniform_n] = torch.bernoulli(torch.rand(
-   #     uniform_n,
-   #     visual_n,
-   #     dtype=model.precision,
-   #     device=model.device
-   # ))
+    hidden, dist_s = p_sampler(samples)
 
     dPsidvb = (dist_s - vb)
     dPsidhb = 1/(torch.exp(-hb-dist_s@W)+ 1)
@@ -128,19 +137,3 @@ def find_min_energy(
         stats_array['Dist'].append(torch.sum(torch.all(visual_g==state, dim=1)).item()/N_test)
 
     return stats_array
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
