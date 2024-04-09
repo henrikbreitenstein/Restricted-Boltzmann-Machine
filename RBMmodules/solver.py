@@ -33,11 +33,14 @@ def metropolis_hastings(input, visual_bias, hidden_bias, W):
     given_h, hidden = sample_hidden(input, hidden_bias, W)
     rand_nums = torch.rand(size)
     previous = input[0]
+    E_prev = net_Energy(previous, visual_bias, hidden, hidden_bias, W)
     for i in range(input.size(dim=0)):
-        acc_ratio = net_Energy(input[i], visual_bias, hidden, hidden_bias, W)
+        E_current = net_Energy(input[i], visual_bias, hidden, hidden_bias, W)
+        acc_ratio = E_current/E_prev
         if acc_ratio <= rand_nums[i]:
             input[i] = previous
         previous = input[i]
+        E_prev = E_current
 
     return input
 
@@ -109,11 +112,6 @@ def find_min_energy(
             var_mean_ratio
         )
 
-        var_mean_ratio = min(0.1, abs((stats['variance']/stats['E_mean']).item()))*(1-n/epochs)**2
-
-        if n/epochs > 0.5:
-            var_mean_ratio = 0
-        
         for key, stat in stats.items():
             stats_array[key][n] = stat
         
