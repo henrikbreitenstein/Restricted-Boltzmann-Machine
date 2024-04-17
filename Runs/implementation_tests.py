@@ -1,15 +1,11 @@
 import torch
+import numpy as np
 import sys
-import os
+import matplotlib.pyplot as plt
 
+sys.path.append('../')
 sys.path.append('../RBMmodules')
-
-dir = os.path.dirname(os.path.abspath(__file__))
-parent = os.path.dirname(dir)
-sys.path.append(dir)
-
-import main
-from RBMmodules import hamiltonian
+from RBMmodules import hamiltonian, main, adaptives
 
 models = {
     "Lipkin"     : {

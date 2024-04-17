@@ -1,6 +1,25 @@
 import torch
 import numpy as np
 import itertools
+from scipy.sparse.linalg import eigsh
+from functools import partial
+
+from torch.cuda import is_available
+
+def ground_state(H):
+    eigvals = np.linalg.eigvals(H)
+    return min(eigvals)
+
+def local_energy(H, amplitudes):
+    weight, non_zero_mask, mask = amplitudes
+    non_zero = weight[non_zero_mask]
+    non_zero_H = H[non_zero_mask]
+    
+    E = torch.sum(non_zero[:,None]*non_zero_H, dim=0)/weight
+
+    return E[mask], torch.var(E), E, weight
+
+# Generic
 
 def dd(a, b):
     if a==b:
@@ -33,153 +52,115 @@ def construct_spin(S):
     
     return J_z, J_pluss, J_minus, 0.5*J_x, (0.5+0.5j)*J_y
 
-def construct_lipkin(S, eps, V):
-    
-    J_z, J_pluss, J_minus = construct_spin(S)[:3]
-
-    H = eps*J_z - 1/2*V*(J_pluss@J_pluss + J_minus@J_minus)
-
-    return H
-
-def construct_ising(N, M):
-    
-    J_z, _, _, J_x, _ = construct_spin(0.5)
-    I = np.eye(2)
-    right_list = []
-    up_list = []
-    single_list = []
-    for i in range(M):
-        for j in range(N):
-            mat_list_right = [I]*N*M
-            mat_list_up = [I]*N*M
-            mat_list_single = [I]*N*M
-
-            mat_list_right[N*i+j] = J_x
-            mat_list_right[N*i+(j+1)%N] = J_x
-
-            mat_list_up[N*i+j] = J_x
-            mat_list_up[N*((i+1)%M)+j] = J_x
-            
-            mat_list_single[N*i+j] = J_z
-
-            right = mat_list_right[0]
-            up = mat_list_up[0]
-            single = mat_list_single[0]
-
-            for mat_right in mat_list_right[1:]:
-                right = np.kron(right, mat_right)
-            for mat_up in mat_list_up[1:]:
-                up = np.kron(up, mat_up)
-            for mat_single in mat_list_single[1:]:
-                single = np.kron(single, mat_single)
-            
-            right_list.append(right)
-            up_list.append(up)
-            single_list.append(single)
-    
-    return right_list, up_list, single_list
-
-def lipkin_true(n, eps, V):
-    H = torch.tensor(construct_lipkin(n/2, eps, V))
-    eigvals = torch.real(torch.linalg.eigvals(H))
-    min_eigval = torch.min(eigvals)
-    return min_eigval
-
 def create_basis(n, dtype, device):
-    basis = torch.tensor(
+    basis = torch.unique(torch.tensor(
         list(itertools.product([0, 1], repeat=n)),
         dtype = dtype,
         device= device
-    )
+    ), dim=0)
+    
     return basis
 
-def pairing_cutoff(basis, P):
-    mask = torch.sum(basis, dim=-1) == 2*P
-    pairing_basis = basis[mask]
-
-    return pairing_basis
-
 def amplitudes(samples, basis):
+    size = samples.shape[0]
     weight = torch.sum(torch.all(samples[:, None] == basis, dim = -1), dim=0)
-    non_zero_weight = weight[weight!=0]
-    weight[weight==0] = 1
-    mask = torch.where(torch.all(samples[:, None] == basis, dim = -1))[1]
-    
-    diff_basis = torch.sum(
-        torch.logical_xor(basis[:, None], basis), dim=-1
-    )[weight!=0]
+    weight = weight/size
+    weight = torch.sqrt(weight)
+    non_zero_mask = torch.where(weight!=0)
+    weight[weight==0] = np.sqrt(1/size)
+    mask = torch.where(torch.all(samples[:, None] == basis, dim = -1))[1] 
 
-    return weight, non_zero_weight, mask, diff_basis
+    return weight, non_zero_mask, mask
+
+#Lipkin
+
+def lipkin_hamiltonian(n, eps, V, W):
+    J_z, J_pluss, J_minus = construct_spin(n/2)[:3]
+    N = np.eye(int(n/2)+1)*n
+    H = eps*J_z 
+    H += V/2*(J_pluss@J_pluss + J_minus@J_minus)
+    H += W/2*(-N + J_pluss@J_minus+J_minus@J_pluss)
+    return H
+
+def lipkin_amps(samples):
+    size, n = samples.shape
+    basis_m = torch.arange(-n, n+1, 2, dtype=samples.dtype, device=samples.device)
+    samples_m = torch.sum(2*samples-1, dim=-1)
+    weight = torch.sum(samples_m[:, None] == basis_m, dim=0)
+    weight = weight/size
+    weight = torch.sqrt(weight)
+    non_zero_mask = torch.where(weight!=0)
+    weight[weight==0] = np.sqrt(1/size)
+    mask = torch.where(samples_m[:, None] == basis_m)[1]
+    
+    return weight, non_zero_mask, mask
 
 def lipkin_local(eps, V, W, samples, basis):
-    weight, non_zero_weight, mask, diff_basis = amplitudes(samples, basis)
-
-    N_0 = torch.sum(basis == 0, dim=-1)
-    N_1 = torch.sum(basis == 1, dim=-1)
-
-    diff_basis = torch.sum(
-        torch.logical_xor(basis[:, None], basis), dim=-1
-    )[weight!=0]
+    weight, non_zero_mask, mask = lipkin_amps(samples)
+    non_zero = weight[non_zero_mask]
     
-    H_0 = 0.5*eps*(N_1-N_0)
-    H_eps = H_0[mask]
+    H = lipkin_hamiltonian(samples.shape[1], eps, V, W)
+    H = torch.tensor(H, dtype=samples.dtype, device=samples.device)
+    non_zero_H = H[non_zero_mask]
+    E = torch.sum(non_zero[:, None]*non_zero_H, dim=0)/weight
 
-    H_1 = V*torch.sum(non_zero_weight[:, None]*(diff_basis == 2), dim=0)/weight
-    H_V = H_1[mask]
-    
-    H_2 = W*torch.sum(non_zero_weight[:, None]*(diff_basis == 1), dim=0)/weight
-    H_W = H_2[mask]
-    
-    E = (H_eps - H_V - H_W)
-    return E
+    return E[mask], torch.var(E), E, weight
 
-def ising_1d(samples, J, L):
-    pm = 2*samples - 1
-    shift_r = torch.roll(pm, 1)
-    H_J = J*torch.sum(pm*shift_r)
-    H_L = L*torch.sum(pm)
-    return H_L + H_J
+def ising_hamiltonian(N, M, J, L):
+    import netket.hilbert as hb
+    from netket.operator.spin import sigmax,sigmaz
+    # From https://netket.readthedocs.io/en/v3.11.4/tutorials/gs-ising.html
+    hi = hb.Spin(s=1 / 2, N=N*M)
+    H = sum([L*sigmax(hi,i) for i in range(N)])
+    if M == 1:
+        H += sum([J*sigmaz(hi,i)*sigmaz(hi,(i+1)%N) for i in range(N)])
+    #--------------------------------------------------------------------
+    else:
+        for _ in range(M):
+            for i in range(N):
+                H += J*sigmaz(hi,N*i)*sigmaz(hi,(N*i+1)%N)
+                H += J*sigmaz(hi,N*i)*sigmaz(hi, (N*i+N)%(N*M))
+    return np.array(H.to_dense())
 
-def ising_1d_true(N, J, L):
-    
-    right, up, single = construct_ising(N, 1)
-    H = np.zeros((2**N, 2**N))
-    for mat in right:
-        H += J*mat
-    for mat in up:
-        H += J*mat
-    for mat in single:
-        H += L*mat
-    eig_vals = np.linalg.eigvalsh(H)
-    return min(eig_vals)
+#Pairing
 
-def ising_2d(samples, J, L):
-    
-    pm = 2*samples - 1
-    size = int(torch.sqrt(pm.shape)[0])
-    pm = torch.reshape(pm, (size, size))
-
-    up = torch.roll(pm, 1, 0)
-    right = torch.roll(pm, 1, 1)
-
-    H_J = J*torch.sum(up*pm + right*pm)
-    H_L = L*torch.sum(pm)
-
-    return H_L + H_J
+def pairing_cutoff(P, dtype, device):
+    basis, diff = create_basis(P, dtype, device)
+    mask = torch.sum(basis, dim=-1) == 2*P
+    basis = basis[mask]
+    return basis, diff
 
 def pairing_local_energy(eps, g, samples, basis):
-    
-    weight, non_zero_weight, mask, diff_basis = amplitudes(samples, basis)
-    
-    H_0 = 2*eps*torch.sum(torch.where(basis==1), dim=-1)
-    H_eps = H_0[mask]
+    basis, diff_basis = basis
+    weight, non_zero_mask, mask = amplitudes(samples, basis)
+    non_zero = weight[non_zero_mask]
+    non_zero_diff = diff_basis[non_zero_mask]
 
-    H_1 = 0.5*g*torch.sum(non_zero_weight[:, None]*(diff_basis==1), dim=0)/weight
+    H_0 = 2*eps*torch.sum(torch.where(basis==1)[0], dim=-1)
+    H_eps = torch.zeros_like(H_0)
+    H_eps[non_zero_mask] = H_0[non_zero_mask]
+
+
+    H_1 = 0.5*g*torch.sum(non_zero[:, None]*(non_zero_diff==1), dim=0)/weight
     H_V = H_1[mask]
 
-    E = H_0 - H_V
+    E = H_eps - H_V
     return E
 
 if __name__ == "__main__":
-    for N in range(2, 10):
-        print(ising_1d_true(N, 1, 0.1))
+    basis = create_basis(2, torch.float64, torch.device('cuda'))
+    ising = ising_basis_set(2, 1, -0.3, 0.2, basis)
+    eq = 7
+    op = 20
+    samples = torch.tensor([[1,1]]*op + [[0,1]]*eq + [[1,0]]*eq + [[0,0]]*op, dtype=torch.float64, device=torch.device('cuda'))
+    energy = ising_local(-0.3, 0.2, samples, ising)
+    print(energy[0])
+    print(torch.mean(energy[0]))
+    #print(netket_ising_true(2, 1, -0.3, 0.2))
+    #a = torch.tensor([[1, 1, 0, 0], [1, 0, 1, 0]])
+    eps = 2; V = -1/3; W = -1/4
+    print(lipkin_true(2, eps, V, W))
+    print(basis[1])
+
+
+

@@ -1,6 +1,9 @@
 import torch
+import numpy as np
 from tqdm import tqdm
 from functools import partial
+
+from RBMmodules import hamiltonian
 S = lambda x: 1/(1 + torch.exp(-x))
 
 def net_Energy(v, a, h, b, W):
@@ -44,7 +47,7 @@ def metropolis_hastings(input, visual_bias, hidden_bias, W):
 
     return input
 
-def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
+def MonteCarlo(cycles, H, masking_func, gibbs_k, model):
     
     vb = model.visual_bias
     hb = model.hidden_bias
@@ -53,15 +56,26 @@ def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
     hidden_n = hb.size(dim=0)
     p_visual = partial(sample_visual, visual_bias=vb, W=W)
 
-    if k == 0:
-        p_sampler = partial(metropolis_hastings, visual_bias=vb, hidden_bias=hb, W=W)
+    if gibbs_k == 0:
+        p_sampler = partial(
+            metropolis_hastings,
+            visual_bias=vb,
+            hidden_bias=hb,
+            W=W
+        )
     else:
-        p_sampler = partial(gibbs_update, visual_bias=vb, hidden_bias=hb, W=W, k=gibbs_k)
+        p_sampler = partial(
+            gibbs_update,
+            visual_bias=vb,
+            hidden_bias=hb,
+            W=W,
+            k=gibbs_k
+        )
 
     hidden = torch.bernoulli(torch.rand(
-        cycles, 
-        hidden_n, 
-        dtype=model.precision, 
+        cycles,
+        hidden_n,
+        dtype=model.precision,
         device=model.device
     ))
     
@@ -70,26 +84,30 @@ def MonteCarlo(cycles, local_energy_func, gibbs_k, model):
 
     dPsidvb = (dist_s - vb)
     dPsidhb = 1/(torch.exp(-hb-dist_s@W)+ 1)
-    dPsidW = dist_s[:, :, None]*dPsidhb[:, None, :]
+    dPsidW  = dist_s[:, :, None]*dPsidhb[:, None, :]
     
-    E_local = local_energy_func(dist_s)
+    amplitudes = masking_func(dist_s)
+    E_local, basis_var, E, weight = hamiltonian.local_energy(H, amplitudes)
     E_mean = torch.mean(E_local)
     E_diff = E_local - E_mean
 
     DeltaVB = torch.mean(E_diff[:, None]*dPsidvb, axis=0)
     DeltaHB = torch.mean(E_diff[:, None]*dPsidhb, axis=0)
-    DeltaW = torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
+    DeltaW  = torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
 
     dE = torch.mean(E_local - E_mean)
     stats = {'E_mean' : E_mean,
             'dE'      : dE,
-            'variance': torch.var(E_local)}
+            'variance': torch.var(E_local),
+            'part_var': basis_var,
+            }
     
-    return DeltaVB, DeltaHB, DeltaW, stats
+    return DeltaVB, DeltaHB, DeltaW, stats, E, weight
 
 def find_min_energy(
     model,
-    local_energy_func,
+    H,
+    masking_func,
     cycles,
     gibbs_k,
     epochs,
@@ -99,32 +117,53 @@ def find_min_energy(
     stats_array = {'E_mean'   : torch.zeros(epochs),
                    'dE'       : torch.zeros(epochs),
                    'variance' : torch.zeros(epochs),
+                   'part_var' : torch.zeros(epochs),
                    'Dist'     : []}
     visual_n = model.visual_bias.size(dim=0)
-    var_mean_ratio = 0
+    
+    prev_vv = 1
+    prev_hv = 1
+    prev_wv = 1
+
+    visual_prev = torch.zeros_like(model.visual_bias)
+    hidden_prev = torch.zeros_like(model.hidden_bias)
+    weights_prev = torch.zeros_like(model.weights)
 
     for n in tqdm(range(epochs)):
-        DeltaVB, DeltaHB, DeltaW, stats = MonteCarlo(
-            cycles, 
-            local_energy_func, 
-            gibbs_k, 
-            model, 
-            var_mean_ratio
+        DeltaVB, DeltaHB, DeltaW, stats, E, weight = MonteCarlo(
+            cycles,
+            H,
+            masking_func,
+            gibbs_k,
+            model,
         )
-
+        if n == epochs-1:
+            print(E)
+            print(weight)
         for key, stat in stats.items():
             stats_array[key][n] = stat
-        
-        adapt_lr = adapt_func(
+
+        adapt_v, adapt_h, adapt_w, vv, hv, wv = adapt_func(
             learning_rate = learning_rate,
-            epochs        = epochs,
-            n             = n,
+            prev_vv       = prev_vv,
+            prev_hv       = prev_hv,
+            prev_wv       = prev_wv,
+            prev_vgrad    = visual_prev,
+            prev_hgrad    = hidden_prev,
+            prev_wgrad    = weights_prev,
         )
 
-        model.visual_bias -= adapt_lr*DeltaVB
-        model.hidden_bias -= adapt_lr*DeltaHB
-        model.weights -= adapt_lr*DeltaW
+        model.visual_bias -= adapt_v*DeltaVB
+        model.hidden_bias -= adapt_h*DeltaHB
+        model.weights     -= adapt_w*DeltaW
     
+        visual_prev  = DeltaVB
+        hidden_prev  = DeltaHB
+        weights_prev = DeltaW
+        prev_vv      = vv
+        prev_hv      = hv
+        prev_wv      = wv
+
     N_test = 100000
     hidden = torch.bernoulli(torch.rand(N_test, model.hidden_bias.shape[0], dtype=model.precision, device=model.device))
     import itertools

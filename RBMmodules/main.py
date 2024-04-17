@@ -36,16 +36,18 @@ def run(
     adaptive_function = run_options["adaptive_function"]
     cycles            = run_options["monte_carlo"]["cycles"]
     monte_carlo       = run_options["monte_carlo"]["type"]
-
-    local_energy = partial(
-        model_options["hamiltonian"],
-        *model_options["args"].values(),
-        basis=hamiltonian.create_basis(vn, precision, device)
+    masking_func      = model_options['masking_func'] 
+    
+    H = torch.tensor(
+        model_options['hamiltonian'],
+        dtype=precision,
+        device=device
     )
 
     result = solver.find_min_energy(
         machine_initialize,
-        local_energy,
+        H,
+        masking_func,
         cycles,
         monte_carlo,
         epochs,
@@ -110,5 +112,5 @@ if __name__ == '__main__':
     print(stats['Dist'])
 
     analysis.plot_energy(epochs, stats['E_mean'])
-    plt.title(r'$\left < E \right > $')
+    plt.title(r'$\left  E \right  $')
     plt.show()

@@ -8,13 +8,13 @@ sys.path.append('../RBMmodules')
 from RBMmodules import hamiltonian, main, adaptives
 
 run_options = {
-    "epochs"      : 1000,
+    "epochs"      : 1,
     "monte_carlo" : {
         "type"   : 3,
         "cycles" : 100_000
     },
-    "learning_rate"     : 2,
-    "adaptive_function" : adaptives.deminishing_linear
+    "learning_rate"     : 10,
+    "adaptive_function" : adaptives.nop
     }
 
 n_particles = 2
@@ -25,10 +25,11 @@ machine_options = {
     "device" : torch.device('cuda')
 }
 
-N = 5
+N = 2
 V_range = np.linspace(0, 1, N)
 est_energy = np.zeros(N)
 true_energy = np.zeros(N)
+std = np.zeros(N)
 for i in range(N):
     model_options = {
         "name" : "Lipkin",
@@ -47,12 +48,15 @@ for i in range(N):
         log = False
     )
     est_energy[i] = result["E_mean"][-1]
+    std[i] = np.sqrt(result["variance"][-1])
     true_energy[i] = hamiltonian.lipkin_true(
         n_particles,
         model_options['args']['eps'],
-        model_options['args']['V']
+        model_options['args']['V'],
+        model_options['args']['W']
     )
-plt.plot(V_range, est_energy)
+print(std)
+plt.errorbar(V_range, est_energy, yerr=std)
 plt.plot(V_range, true_energy)
 plt.show()
 
