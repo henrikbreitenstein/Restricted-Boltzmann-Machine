@@ -27,11 +27,11 @@ def gibbs_update(input, visual_bias, hidden_bias, W, k):
     for _ in range(k):
         given_h, hidden_k = sample_hidden(given_v, hidden_bias, W)
         given_v, visual_k = sample_visual(given_h, visual_bias, W)
-    
+
     return hidden_k, visual_k
 
 def metropolis_hastings(input, visual_bias, hidden_bias, W):
-    
+ 
     size = input.size(dim=0)
     given_h, hidden = sample_hidden(input, hidden_bias, W)
     rand_nums = torch.rand(size)
@@ -47,8 +47,8 @@ def metropolis_hastings(input, visual_bias, hidden_bias, W):
 
     return input
 
-def MonteCarlo(cycles, H, masking_func, gibbs_k, model):
-    
+def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis):
+ 
     vb = model.visual_bias
     hb = model.hidden_bias
     W = model.weights
@@ -78,14 +78,13 @@ def MonteCarlo(cycles, H, masking_func, gibbs_k, model):
         dtype=model.precision,
         device=model.device
     ))
-    
+
     _, samples = p_visual(hidden)
     hidden, dist_s = p_sampler(samples)
-
     dPsidvb = (dist_s - vb)
     dPsidhb = 1/(torch.exp(-hb-dist_s@W)+ 1)
     dPsidW  = dist_s[:, :, None]*dPsidhb[:, None, :]
-    
+
     amplitudes = masking_func(dist_s)
     E_local, basis_var, E, weight = hamiltonian.local_energy(H, amplitudes)
     E_mean = torch.mean(E_local)
@@ -100,9 +99,21 @@ def MonteCarlo(cycles, H, masking_func, gibbs_k, model):
             'dE'      : dE,
             'variance': torch.var(E_local),
             'part_var': basis_var,
+            'E'       : E,
+            'amps'    : weight
             }
-    
-    return DeltaVB, DeltaHB, DeltaW, stats, E, weight
+
+    return DeltaVB, DeltaHB, DeltaW, stats
+
+
+from typing import TypedDict
+class stats_dict(TypedDict):
+    E_mean   : torch.Tensor
+    dE       : torch.Tensor
+    variance : torch.Tensor
+    part_var : torch.Tensor
+    E        : torch.Tensor
+    amps     : torch.Tensor
 
 def find_min_energy(
     model,
@@ -112,65 +123,70 @@ def find_min_energy(
     gibbs_k,
     epochs,
     learning_rate,
-    adapt_func):
+    adapt,
+    verbose = False) -> stats_dict:
 
-    stats_array = {'E_mean'   : torch.zeros(epochs),
-                   'dE'       : torch.zeros(epochs),
-                   'variance' : torch.zeros(epochs),
-                   'part_var' : torch.zeros(epochs),
-                   'Dist'     : []}
-    visual_n = model.visual_bias.size(dim=0)
+    stats_array: stats_dict = {
+        'E_mean'   : torch.zeros(epochs),
+        'dE'       : torch.zeros(epochs),
+        'variance' : torch.zeros(epochs),
+        'part_var' : torch.zeros(epochs),
+        'E'        : torch.zeros((epochs, H.shape[0])),
+        'amps'     : torch.zeros((epochs, H.shape[0]))
+    }
     
-    prev_vv = 1
-    prev_hv = 1
-    prev_wv = 1
+    basis = hamiltonian.create_basis(
+        len(model.visual_bias),
+        dtype = model.precision,
+        device = model.device
+    )
+
+    adapt_func = adapt['func']
+    vv = prev_vv = adapt['gamma']
+    hv = prev_hv = adapt['gamma']
+    wv = prev_wv = adapt['gamma']
+    adapt_v = learning_rate
+    adapt_h = learning_rate
+    adapt_w = learning_rate
 
     visual_prev = torch.zeros_like(model.visual_bias)
     hidden_prev = torch.zeros_like(model.hidden_bias)
     weights_prev = torch.zeros_like(model.weights)
 
     for n in tqdm(range(epochs)):
-        DeltaVB, DeltaHB, DeltaW, stats, E, weight = MonteCarlo(
+        DeltaVB, DeltaHB, DeltaW, stats = MonteCarlo(
             cycles,
             H,
             masking_func,
             gibbs_k,
             model,
+            basis,
         )
-        if n == epochs-1:
-            print(E)
-            print(weight)
+
         for key, stat in stats.items():
             stats_array[key][n] = stat
 
-        adapt_v, adapt_h, adapt_w, vv, hv, wv = adapt_func(
-            learning_rate = learning_rate,
-            prev_vv       = prev_vv,
-            prev_hv       = prev_hv,
-            prev_wv       = prev_wv,
-            prev_vgrad    = visual_prev,
-            prev_hgrad    = hidden_prev,
-            prev_wgrad    = weights_prev,
-        )
+        if n > 1:
+            adapt_v, adapt_h, adapt_w, vv, hv, wv = adapt_func(
+                learning_rate = learning_rate,
+                prev_vv       = prev_vv,
+                prev_hv       = prev_hv,
+                prev_wv       = prev_wv,
+                prev_vgrad    = visual_prev,
+                prev_hgrad    = hidden_prev,
+                prev_wgrad    = weights_prev,
+                gamma         = adapt['gamma']
+            )
 
         model.visual_bias -= adapt_v*DeltaVB
         model.hidden_bias -= adapt_h*DeltaHB
         model.weights     -= adapt_w*DeltaW
-    
+
         visual_prev  = DeltaVB
         hidden_prev  = DeltaHB
         weights_prev = DeltaW
         prev_vv      = vv
         prev_hv      = hv
         prev_wv      = wv
-
-    N_test = 100000
-    hidden = torch.bernoulli(torch.rand(N_test, model.hidden_bias.shape[0], dtype=model.precision, device=model.device))
-    import itertools
-    all_states = torch.tensor(list(itertools.product([0, 1], repeat=visual_n)), dtype=model.precision, device=model.device)
-    hidden_g, visual_g = gibbs_update(sample_visual(hidden, model.visual_bias, model.weights)[1], 
-                                      model.visual_bias, model.hidden_bias, model.weights, gibbs_k)
-    for state in all_states:
-        stats_array['Dist'].append(torch.sum(torch.all(visual_g==state, dim=1)).item()/N_test)
-
+ 
     return stats_array

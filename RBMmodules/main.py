@@ -16,6 +16,7 @@ def run(
     run_options     : dict[str, Any],
     run_name        : str = "",
     log             : bool = True,
+    verbose         : bool = False
     ) -> Union[str, dict[str, _UnknownType]]:
 
     vn        = machine_options["visual_n"]
@@ -33,7 +34,10 @@ def run(
 
     epochs            = run_options["epochs"]
     learning_rate     = run_options["learning_rate"]
-    adaptive_function = run_options["adaptive_function"]
+    adapt             = {
+        "func" : run_options["adaptive_function"],
+        "gamma": run_options["gamma"]
+    }
     cycles            = run_options["monte_carlo"]["cycles"]
     monte_carlo       = run_options["monte_carlo"]["type"]
     masking_func      = model_options['masking_func'] 
@@ -52,7 +56,8 @@ def run(
         monte_carlo,
         epochs,
         learning_rate,
-        adaptive_function
+        adapt,
+        verbose = verbose
     )
 
     machine_layers = {

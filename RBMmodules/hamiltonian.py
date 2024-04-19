@@ -14,10 +14,11 @@ def local_energy(H, amplitudes):
     weight, non_zero_mask, mask = amplitudes
     non_zero = weight[non_zero_mask]
     non_zero_H = H[non_zero_mask]
-    
-    E = torch.sum(non_zero[:,None]*non_zero_H, dim=0)/weight
+    amps = torch.zeros_like(weight)
+    amps[non_zero_mask] = weight[non_zero_mask]
 
-    return E[mask], torch.var(E), E, weight
+    E = torch.sum(non_zero[:,None]*non_zero_H, dim=0)/weight
+    return E[mask], torch.var(E), E, amps
 
 # Generic
 
@@ -63,20 +64,20 @@ def create_basis(n, dtype, device):
 
 def amplitudes(samples, basis):
     size = samples.shape[0]
+    
     weight = torch.sum(torch.all(samples[:, None] == basis, dim = -1), dim=0)
     weight = weight/size
     weight = torch.sqrt(weight)
-    non_zero_mask = torch.where(weight!=0)
-    weight[weight==0] = np.sqrt(1/size)
+    non_zero_mask = torch.where(weight>0)
+    weight[weight==0] = 1/size
     mask = torch.where(torch.all(samples[:, None] == basis, dim = -1))[1] 
-
     return weight, non_zero_mask, mask
 
 #Lipkin
 
 def lipkin_hamiltonian(n, eps, V, W):
     J_z, J_pluss, J_minus = construct_spin(n/2)[:3]
-    N = np.eye(int(n/2)+1)*n
+    N = np.eye(n+1)*n
     H = eps*J_z 
     H += V/2*(J_pluss@J_pluss + J_minus@J_minus)
     H += W/2*(-N + J_pluss@J_minus+J_minus@J_pluss)
@@ -89,7 +90,7 @@ def lipkin_amps(samples):
     weight = torch.sum(samples_m[:, None] == basis_m, dim=0)
     weight = weight/size
     weight = torch.sqrt(weight)
-    non_zero_mask = torch.where(weight!=0)
+    non_zero_mask = torch.where(weight>0)
     weight[weight==0] = np.sqrt(1/size)
     mask = torch.where(samples_m[:, None] == basis_m)[1]
     
