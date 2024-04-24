@@ -48,6 +48,11 @@ def run(
         device=device
     )
 
+    if "binary_gaus" in run_options:
+        bg = run_options["binary_gaus"]
+    else:
+        bg = 1
+
     result = solver.find_min_energy(
         machine_initialize,
         H,
@@ -57,6 +62,7 @@ def run(
         epochs,
         learning_rate,
         adapt,
+        binary_gaus=bg,
         verbose = verbose
     )
 

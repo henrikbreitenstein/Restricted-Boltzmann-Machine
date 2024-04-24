@@ -14,40 +14,37 @@ def net_Energy(v, a, h, b, W):
 def sample_visual(hidden, visual_bias, W):
     given = S(hidden@W.T + visual_bias)
     binary = torch.bernoulli(given)
-    return given, binary
+    return (given, binary)
 
 def sample_hidden(visual, hidden_bias, W):
     given = S(visual@W + hidden_bias)
     binary = torch.bernoulli(given)
     return given, binary
 
-def gibbs_update(input, visual_bias, hidden_bias, W, k):
+def gibbs_update(input, visual_bias, hidden_bias, W, k, hidden=None):
     given_h, hidden = sample_hidden(input, hidden_bias, W)
-    given_v, visual_k = sample_visual(hidden, visual_bias, W)
+    given_v, visual_k = sample_visual(given_h, visual_bias, W)
     for _ in range(k):
         given_h, hidden_k = sample_hidden(given_v, hidden_bias, W)
         given_v, visual_k = sample_visual(given_h, visual_bias, W)
 
-    return hidden_k, visual_k
+    return hidden_k, (given_v, visual_k)
 
-def metropolis_hastings(input, visual_bias, hidden_bias, W):
- 
+def metropolis_hastings(input, visual_bias, hidden_bias, W, hidden=None):
+    
     size = input.size(dim=0)
-    given_h, hidden = sample_hidden(input, hidden_bias, W)
+    #given_h, hidden = sample_hidden(input, hidden_bias, W)
     rand_nums = torch.rand(size)
-    previous = input[0]
-    E_prev = net_Energy(previous, visual_bias, hidden, hidden_bias, W)
-    for i in range(input.size(dim=0)):
-        E_current = net_Energy(input[i], visual_bias, hidden, hidden_bias, W)
-        acc_ratio = E_current/E_prev
+    E_all = net_Energy(input, visual_bias, hidden, hidden_bias, W)
+    E_all = E_all.cpu()
+    for i in range(1, input.size(dim=0)):
+        acc_ratio = E_all[i]/E_all[i-1]
         if acc_ratio <= rand_nums[i]:
-            input[i] = previous
-        previous = input[i]
-        E_prev = E_current
+            input[i] = input[i-1]
+            E_all[i] = E_all[i-1]
+    return hidden, (input, torch.bernoulli(input))
 
-    return input
-
-def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis):
+def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis, binary_gaus=1):
  
     vb = model.visual_bias
     hb = model.hidden_bias
@@ -72,16 +69,17 @@ def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis):
             k=gibbs_k
         )
 
-    hidden = torch.bernoulli(torch.rand(
+    hidden = torch.rand(
         cycles,
         hidden_n,
         dtype=model.precision,
         device=model.device
-    ))
+    )
+    samples = p_visual(hidden)[1]
+    hidden, visual = p_sampler(samples, hidden=hidden)
+    dist_s = visual[binary_gaus]
 
-    _, samples = p_visual(hidden)
-    hidden, dist_s = p_sampler(samples)
-    dPsidvb = (dist_s - vb)
+    dPsidvb = (dist_s- vb)
     dPsidhb = 1/(torch.exp(-hb-dist_s@W)+ 1)
     dPsidW  = dist_s[:, :, None]*dPsidhb[:, None, :]
 
@@ -94,14 +92,29 @@ def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis):
     DeltaHB = torch.mean(E_diff[:, None]*dPsidhb, axis=0)
     DeltaW  = torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
 
+   # dPsidvb = (basis-vb)
+   # dPsidhb = 1/(torch.exp(-hb-basis@W)+ 1)
+   # dPsidW  = basis[:, :, None]*dPsidhb[:, None, :]
+
+   # amplitudes = masking_func(dist_s)
+   # E_local, basis_var, E, weight = hamiltonian.local_energy(H, amplitudes)
+   # E_diff = E - torch.mean(E[weight!=0])
+   # E_diff[weight==0] = 0
+
+   # DeltaVB = torch.mean(E_diff[:, None]*dPsidvb, axis=0)
+   # DeltaHB = torch.mean(E_diff[:, None]*dPsidhb, axis=0)
+   # DeltaW  = torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
+
+
     dE = torch.mean(E_local - E_mean)
-    stats = {'E_mean' : E_mean,
-            'dE'      : dE,
-            'variance': torch.var(E_local),
-            'part_var': basis_var,
-            'E'       : E,
-            'amps'    : weight
-            }
+    stats = {
+        'E_mean'  : E_mean,
+        'dE'      : dE,
+        'variance': torch.var(E_local),
+        'part_var': basis_var,
+        'E'       : E,
+        'amps'    : weight**2
+    }
 
     return DeltaVB, DeltaHB, DeltaW, stats
 
@@ -124,6 +137,7 @@ def find_min_energy(
     epochs,
     learning_rate,
     adapt,
+    binary_gaus=1,
     verbose = False) -> stats_dict:
 
     stats_array: stats_dict = {
@@ -161,6 +175,7 @@ def find_min_energy(
             gibbs_k,
             model,
             basis,
+            binary_gaus=binary_gaus,
         )
 
         for key, stat in stats.items():

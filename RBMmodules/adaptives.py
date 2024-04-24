@@ -8,9 +8,9 @@ def deminishing_linear(**kwargs):
     return update_lr*kwargs['learning_rate']
 
 def momentum(gamma, **kwargs):
-    vv = gamma*kwargs['prev_vv']
-    hv = gamma*kwargs['prev_hv']
-    wv = gamma*kwargs['prev_wv']
+    vv = gamma*kwargs['prev_vv']*kwargs['learning_rate']
+    hv = gamma*kwargs['prev_hv']*kwargs['learning_rate']
+    wv = gamma*kwargs['prev_wv']*kwargs['learning_rate']
     adapt_v = vv + kwargs['learning_rate']*kwargs['prev_vgrad']
     adapt_h = hv + kwargs['learning_rate']*kwargs['prev_hgrad']
     adapt_w = wv + kwargs['learning_rate']*kwargs['prev_wgrad']

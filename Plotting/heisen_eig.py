@@ -13,8 +13,7 @@ N = 2
 M = 2
 L = 1
 
-
-test = hamiltonian.ising_hamiltonian(N, M, 1, L)
+test = hamiltonian.heisen_hamiltonian(N, M, 1, L)
 n = 2**(N*M)
 eigenvalues = np.zeros((100, n))
 
@@ -22,13 +21,12 @@ J_range= np.linspace(-1, 1, 100)
 
 for i, J in enumerate(J_range):
     
-    H = hamiltonian.ising_hamiltonian(N, M, J, L)
+    H = hamiltonian.heisen_hamiltonian(N, M, J, L)
     eig = (np.linalg.eigvals(H).real).round(decimals=5)
     eig.sort()
     eigenvalues[i] = eig
 
-print(eigenvalues)
-fig = plt.figure()
+fig = plt.figure(figsize=(9,7))
 plt.xlabel("J")
 plt.ylabel("E")
 

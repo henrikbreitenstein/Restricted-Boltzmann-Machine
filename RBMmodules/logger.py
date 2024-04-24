@@ -2,6 +2,7 @@ from numpy import save
 import pandas as pd
 import pickle
 import os
+from solver import stats_dict
 
 def save_to_dest(to_save : dict, folder : str, name : str):
     with open(folder + '/' + name, 'wb+') as fb:
@@ -12,7 +13,7 @@ def learning_process(
     model_layers : dict,
     machine_options : dict,
     run_options : dict,
-    result : dict,
+    result : stats_dict,
     run_name : str,
     ) -> str:
 
