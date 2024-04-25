@@ -88,9 +88,9 @@ def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis, binary_gaus=1):
     E_mean = torch.mean(E_local)
     E_diff = E_local - E_mean
 
-    DeltaVB = torch.mean(E_diff[:, None]*dPsidvb, axis=0)
-    DeltaHB = torch.mean(E_diff[:, None]*dPsidhb, axis=0)
-    DeltaW  = torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
+    DeltaVB = 2*torch.mean(E_diff[:, None]*dPsidvb, axis=0)
+    DeltaHB = 2*torch.mean(E_diff[:, None]*dPsidhb, axis=0)
+    DeltaW  = 2*torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
 
    # dPsidvb = (basis-vb)
    # dPsidhb = 1/(torch.exp(-hb-basis@W)+ 1)
@@ -110,6 +110,10 @@ def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis, binary_gaus=1):
     stats = {
         'E_mean'  : E_mean,
         'dE'      : dE,
+        'vb'      : vb,
+        'hb'      : hb,
+        'dvb'     : DeltaVB,
+        'dhb'     : DeltaHB,
         'variance': torch.var(E_local),
         'part_var': basis_var,
         'E'       : E,
@@ -123,6 +127,10 @@ from typing import TypedDict
 class stats_dict(TypedDict):
     E_mean   : torch.Tensor
     dE       : torch.Tensor
+    vb       : torch.Tensor
+    hb       : torch.Tensor
+    dvb      : torch.Tensor
+    dhb      : torch.Tensor
     variance : torch.Tensor
     part_var : torch.Tensor
     E        : torch.Tensor
@@ -139,10 +147,15 @@ def find_min_energy(
     adapt,
     binary_gaus=1,
     verbose = False) -> stats_dict:
-
+    vn = len(model.visual_bias)
+    hn = len(model.hidden_bias)
     stats_array: stats_dict = {
         'E_mean'   : torch.zeros(epochs),
         'dE'       : torch.zeros(epochs),
+        'vb'       : torch.zeros((epochs, vn)),
+        'hb'       : torch.zeros((epochs, hn)),
+        'dvb'      : torch.zeros((epochs, vn)),
+        'dhb'      : torch.zeros((epochs, hn)),
         'variance' : torch.zeros(epochs),
         'part_var' : torch.zeros(epochs),
         'E'        : torch.zeros((epochs, H.shape[0])),

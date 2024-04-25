@@ -100,7 +100,7 @@ def lipkin_amps(samples):
     basis_m = torch.arange(-n, n+1, 2, dtype=samples.dtype, device=samples.device)
     samples_m = torch.sum(2*samples-1, dim=-1)
     weight = torch.sum(samples_m[:, None] == basis_m, dim=0)
-    weight = np.sqrt(weight/size)
+    weight = torch.sqrt(weight/size)
     non_zero_mask = torch.where(weight>0)
     weight[weight==0] = np.sqrt(1/size)
     mask = torch.where(samples_m[:, None] == basis_m)[1]
