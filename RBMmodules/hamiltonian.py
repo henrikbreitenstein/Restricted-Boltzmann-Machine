@@ -18,7 +18,7 @@ def ground_state_vec(H):
     return eig[argmin]
 
 def ground_state(H):
-    eigvals = np.linalg.eigvals(H)
+    eigvals = np.linalg.eigvalsh(H)
     return min(eigvals)
 
 def local_energy(H, amplitudes):
@@ -75,12 +75,12 @@ def create_basis(n, dtype, device):
 
 def amplitudes(samples, basis):
     size = samples.shape[0]
-    
-    weight = torch.sum(torch.all(samples[:, None] == basis, dim = -1), dim=0)
+    all = torch.all(samples[:, None] == basis, dim = -1)
+    weight = torch.sum(all, dim=0)
     non_zero_mask = torch.where(weight>0)
     weight = torch.sqrt(weight/size)
-    weight[weight==0] = 100
-    mask = torch.where(torch.all(samples[:, None] == basis, dim = -1))[1] 
+    weight[weight==0] = 1/size
+    mask = torch.where(all)[1] 
     return weight, non_zero_mask, mask
 
 
@@ -107,16 +107,6 @@ def lipkin_amps(samples):
     
     return weight, non_zero_mask, mask
 
-def lipkin_local(eps, V, W, samples, basis):
-    weight, non_zero_mask, mask = lipkin_amps(samples)
-    non_zero = weight[non_zero_mask]
-    
-    H = lipkin_hamiltonian(samples.shape[1], eps, V, W)
-    H = torch.tensor(H, dtype=samples.dtype, device=samples.device)
-    non_zero_H = H[non_zero_mask]
-    E = torch.sum(non_zero[:, None]*non_zero_H, dim=0)/weight
-
-    return E[mask], torch.var(E), E, weight
 
 def ising_hamiltonian(N, M, J, L):
     import netket.hilbert as hb
@@ -151,7 +141,7 @@ def heisen_amps(samples, basis):
 
     return weight, non_zero_mask, mask
 
-def heisen_hamiltonian(N, M, J, L):
+def heisen_hamiltonian(J, L, N, M):
     import netket.hilbert as hb
     from netket.operator.spin import sigmax, sigmay, sigmaz
     hi = hb.Spin(s=1/2, N=N*M)
@@ -174,8 +164,7 @@ def heisen_hamiltonian(N, M, J, L):
 
 #Pairing
 
-def pairing_hamiltonian(P, n, eps, g):
-    basis = create_basis(P, dtype=torch.float64, device=None)
+def pairing_hamiltonian(basis, n, eps, g):
     mask_non = torch.where(torch.sum(basis, dim=-1) != n)[0]
     where = torch.where(basis==1)
     B_0 = torch.zeros_like(basis[:, 0])
@@ -187,34 +176,11 @@ def pairing_hamiltonian(P, n, eps, g):
         dim=-1
     )
     B_1 = -0.5*g*(diff==2)
-    H = 2*eps*torch.diagflat(B_0) + B_1
+    H = eps*torch.diagflat(B_0) + B_1
     for i in mask_non:
         H[:, i] = 0
         H[i, :] = 0
     return np.array(H.cpu())
-
-def pairing_cutoff(P, dtype, device):
-    basis, diff = create_basis(P, dtype, device)
-    mask = torch.sum(basis, dim=-1) == 2*P
-    basis = basis[mask]
-    return basis, diff
-
-def pairing_local_energy(eps, g, samples, basis):
-    basis, diff_basis = basis
-    weight, non_zero_mask, mask = amplitudes(samples, basis)
-    non_zero = weight[non_zero_mask]
-    non_zero_diff = diff_basis[non_zero_mask]
-
-    H_0 = 2*eps*torch.sum(torch.where(basis==1)[0], dim=-1)
-    H_eps = torch.zeros_like(H_0)
-    H_eps[non_zero_mask] = H_0[non_zero_mask]
-
-
-    H_1 = 0.5*g*torch.sum(non_zero[:, None]*(non_zero_diff==1), dim=0)/weight
-    H_V = H_1[mask]
-
-    E = H_eps - H_V
-    return E
 
 if __name__ == "__main__":
     basis = create_basis(3, torch.float64, torch.device('cuda'))

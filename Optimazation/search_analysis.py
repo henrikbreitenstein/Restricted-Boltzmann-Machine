@@ -96,7 +96,8 @@ def plot_line(
     search,
     run_options,
     model_options,
-    machine_options
+    machine_options,
+    show=True
     ):
 
     particles = machine_options['visual_n']
@@ -148,6 +149,7 @@ def plot_line(
     name = model_options['name']
     plt.savefig(f'Figures/{name}/'+run_folder + '.pdf')
     plt.title(run_folder)
-    plt.show()
+    if show:
+        plt.show()
 
 

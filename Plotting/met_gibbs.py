@@ -9,25 +9,22 @@ from RBMmodules import main, hamiltonian, adaptives
 from Optimazation import lipkin_line
 
 param = lipkin_line.lipkin_results_grid
-n = 2
-lr = param["lr"][int(n/2)-1]
-hn = param["hidden_n"][int(n/2)-1]
-gibbs_k = param["gibbs_k"][int(n/2)-1]
+n = 16
 
 run_options = {
-    "epochs"      : 300,
+    "epochs"      : 850,
     "monte_carlo" : {
-        "type"   : gibbs_k,
-        "cycles" : 10_000
+        "type"   : 2,
+        "cycles" : 70_000
     },
-    "learning_rate"     : lr,
+    "learning_rate"     : param["lr"][n-4],
     "adaptive_function" : adaptives.nop,
     "gamma" : 0
     }
 
 machine_options = {
     "visual_n" : n,
-    "hidden_n" : hn,
+    "hidden_n" : param["hidden_n"][n-4],
     "precision" : torch.float64,
     "device" : torch.device('cuda')
 }
@@ -37,7 +34,7 @@ basis = hamiltonian.create_basis(
     machine_options['device']
 )
 
-eps = 1.5 -np.sqrt(3)/2 ; V=-1; W = 0
+eps = -2 ; V=-0.2; W = -0.14
 model_options = {
     "name" : "Lipkin",
     "hamiltonian" : hamiltonian.lipkin_local,
@@ -60,20 +57,18 @@ model_options["masking_func"] = hamiltonian.lipkin_amps
 model_options["hamiltonian"] = H
 true_val = hamiltonian.ground_state(H)
 
-repeats = 1
-points = 10
+repeats = 2
+points = 20
 
 
-search_k = np.linspace(1, 21, points)
-search_c = np.linspace(10_000, 500_000, points, dtype=int)
-err_g = np.zeros(points)
-err_a = np.zeros(points)
-var = np.zeros(points)
+search_c = np.linspace(-1, 0, points)
+var_g = np.zeros(points)
+var_a = np.zeros(points)
 
 for repeat in range(repeats):
     for i in range(points):
-        run_options['monte_carlo']['cycles'] = search_c[i]
-        run_options['monte_carlo']['type'] = gibbs_k
+        model_options["args"]["V"] = search_c[i]
+        run_options['monte_carlo']['type'] = 2
         result = main.run(
             model_options,
             machine_options,
@@ -81,7 +76,7 @@ for repeat in range(repeats):
             "",
             log = False
         )
-        err_g[i] += abs(result['E_mean'][-1] - true_val)
+        var_g[i] += result['variance'][-1]
         run_options['monte_carlo']['type'] = 0
         result = main.run(
             model_options,
@@ -90,17 +85,20 @@ for repeat in range(repeats):
             "",
             log = False
         )
-        err_a[i] += abs(result['E_mean'][-1] - true_val)
+        var_a[i] += result['variance'][-1]
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_theme(font_scale=1.5)
 
-plt.plot(search_c, err_g/repeats, label='Gibbs')
-plt.plot(search_c, err_a/repeats, label='Criteria')
-plt.xlabel("Samples")
-plt.ylabel("Error")
-plt.legend()
+
+fig, ax1 = plt.subplots(figsize=(9,7))
+ax1.set_ylabel("$Var[E_{local}]$")
+ax1.plot(search_c, var_g/repeats, label='Gibbs', color='tab:red')
+ax1.plot(search_c, var_a/repeats, label='Criteria', color='tab:blue')
+ax1.set_xlabel("V")
+ax1.legend()
+plt.savefig(f"[eps={eps}][V={V}][W={W}]met_gibbs.pdf")
 plt.show()
 
 

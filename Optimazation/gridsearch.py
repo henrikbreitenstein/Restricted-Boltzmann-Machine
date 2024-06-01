@@ -18,7 +18,8 @@ def gridsearch(
     machine_options,
     true_val,
     plot = False,
-    verbose = False
+    verbose = False,
+    return_eigvec=False
     ):
     
     print(f"""
@@ -51,7 +52,8 @@ def gridsearch(
                 error[i, j] += abs(result['E_mean'][-1] - true_val)
                 
                     
-    vec = hamiltonian.ground_state_vec(model_options["hamiltonian"])
+    if return_eigvec:
+        vec = hamiltonian.ground_state_vec(model_options["hamiltonian"])
 
     if plot:
         import matplotlib.pyplot as plt
@@ -72,40 +74,40 @@ def gridsearch(
         title = model_options['name']
         for var in model_options['args'].items():
             title += f' {var[0]}={var[1]}'
-        plt.title(title)
+        #plt.title(title)
         plt.legend()
         plt.show()
 
         vn = machine_options['visual_n']
-        for i in range(vn):
-            y = result['vb'][:, i]
-            plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'v_{i}')
-        plt.title(title + ' V Bias')
-        plt.legend()
-        plt.show()
+       # for i in range(vn):
+       #     y = result['vb'][:, i]
+       #     plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'v_{i}')
+       # #plt.title(title + ' V Bias')
+       # plt.legend()
+       # plt.show()
 
         hn = machine_options['hidden_n']
-        for i in range(hn):
-            y = result['hb'][:, i]
-            plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'h_{i}')
-        plt.title(title + ' H Bias')
-        plt.legend()
-        plt.show()
+       # for i in range(hn):
+       #     y = result['hb'][:, i]
+       #     plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'h_{i}')
+       # #plt.title(title + ' H Bias')
+       # plt.legend()
+       # plt.show()
+        if 0:
+            for i in range(vn):
+                y = result['dvb'][:, i]
+                plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'v_{i}')
+            #plt.title(title + ' dV Bias')
+            #plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05))
+            plt.show()
 
-        for i in range(vn):
-            y = result['dvb'][:, i]
-            plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'v_{i}')
-        plt.title(title + ' dV Bias')
-        plt.legend()
-        plt.show()
-
-        hn = machine_options['hidden_n']
-        for i in range(hn):
-            y = result['dhb'][:, i]
-            plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'h_{i}')
-        plt.title(title + ' dH Bias')
-        plt.legend()
-        plt.show()
+            hn = machine_options['hidden_n']
+            for i in range(hn):
+                y = result['dhb'][:, i]
+                plt.plot(np.arange(1, run_options['epochs']+1), y, label=f'h_{i}')
+            #plt.title(title + ' dH Bias')
+            #plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05))
+            plt.show()
 
 
     if verbose:
@@ -114,6 +116,8 @@ def gridsearch(
         print(f"Amps: {vec[1]}, eig: {vec[0]}")
         print(f"Final E_loc: {result['E'][-1]}")
         print(f"Final error = {error[-1,-1]}")
+
+        print(rf"{result['E_mean'][-1]} $\pm$ {np.sqrt(result['variance'][-1])}")
     model = model_options['name']
     epochs = run_options['epochs']
     n_particles = machine_options['visual_n']
@@ -182,4 +186,5 @@ def linesearch(
     np.save(folder +'error.npy', error)
     np.save(folder+'array.npy', var_grid)
     np.save(folder+'part.npy', part_grid)
+    return search_x[np.argmin(var_grid)]
 

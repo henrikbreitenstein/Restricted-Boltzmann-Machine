@@ -62,6 +62,7 @@ def run(
         epochs,
         learning_rate,
         adapt,
+        model_options['basis'],
         binary_gaus=bg,
         verbose = verbose
     )

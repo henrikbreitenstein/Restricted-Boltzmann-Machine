@@ -18,13 +18,13 @@ run_options = {
     "epochs"      : 1000,
     "monte_carlo" : {
         "type"   : 2,
-        "cycles" : 50_000
+        "cycles" : 100_000
     },
     "learning_rate"     : None,
     "adaptive_function" : adaptives.nop
     }
 
-n_particles = 2
+n_particles = 16
 machine_options = {
     "visual_n" : n_particles,
     "hidden_n" : n_particles,
@@ -37,7 +37,7 @@ basis = hamiltonian.create_basis(
     machine_options['device']
 )
 
-eps = 1 ; V=-1; W = 0
+eps = -2 ; V=0; W = -0
 model_options = {
     "name" : "Lipkin",
     "hamiltonian" : hamiltonian.lipkin_local,
@@ -63,7 +63,7 @@ true_val = hamiltonian.ground_state(H)
 
 resolution = 1
 search_x = np.linspace(0.1, 0.04, resolution)
-search_y = np.linspace(0.05, 0.05, resolution)
+search_y = np.linspace(0.005, 0.05, resolution)
 repeats = 1
 
 if __name__ == "__main__":

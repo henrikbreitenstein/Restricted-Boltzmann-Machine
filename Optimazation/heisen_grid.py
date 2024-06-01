@@ -9,11 +9,7 @@ sys.path.append('../RBMmodules')
 from functools import partial
 from RBMmodules import hamiltonian, adaptives
 
-heisen_results_grid = {
-    "n" : np.array([]),
-    "learning_rate" : np.array([]),
-    "gamma" : np.array([])
-}
+
 
 run_options = {
     "epochs"      : 1000,
@@ -26,11 +22,11 @@ run_options = {
     }
 
 N = 3
-M = 1
+M = 3
 n_particles = N*M
 machine_options = {
     "visual_n" : n_particles,
-    "hidden_n" : 2*n_particles,
+    "hidden_n" : 10,
     "precision" : torch.float64,
     "device" : torch.device('cuda')
 }
@@ -40,9 +36,9 @@ basis = hamiltonian.create_basis(
     machine_options['device']
 )
 
-J = 0.3
-L = -0.4
-H = hamiltonian.heisen_hamiltonian(N, M, J, L)
+J = -1
+L = -0.5
+H = hamiltonian.heisen_hamiltonian(J, L, N, M)
 
 model_options = {
     "name" : "Heisenberg",
@@ -60,7 +56,7 @@ true_val = hamiltonian.ground_state(H)
 
 resolution = 1
 search_x = np.linspace(0.0, 1, resolution)
-search_y = np.linspace(1, 2, resolution)
+search_y = np.linspace(0.00770, 2, resolution)
 
 
 repeats = 1
@@ -76,7 +72,7 @@ if __name__ == "__main__":
             machine_options,
             true_val,
             plot=True,
-            verbose=True
+            verbose=False
         )
 
     if not True:

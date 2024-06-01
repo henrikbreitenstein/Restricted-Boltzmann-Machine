@@ -19,18 +19,18 @@ run_options = {
     "epochs"      : 500,
     "monte_carlo" : {
         "type"   : 2,
-        "cycles" : 100_000
+        "cycles" : 500_000
     },
     "learning_rate"     : None,
     "adaptive_function" : adaptives.nop
     }
 
-N = 2
-M = 1
+N = 3
+M = 3
 n_particles = N*M
 machine_options = {
     "visual_n" : n_particles,
-    "hidden_n" : 4,
+    "hidden_n" : 13,
     "precision" : torch.float64,
     "device" : torch.device('cuda')
 }
@@ -40,8 +40,8 @@ basis = hamiltonian.create_basis(
     machine_options['device']
 )
 
-J = 0.3
-L = -0.4
+J = -1
+L = -0.5
 H = hamiltonian.ising_hamiltonian(N, M, J, L)
 
 model_options = {
@@ -60,7 +60,7 @@ true_val = hamiltonian.ground_state(H)
 
 resolution = 1
 search_x = np.linspace(0.01, 10, resolution)
-search_y = np.linspace(2, 2, resolution)
+search_y = np.linspace(0.00770, 2, resolution)
 
 repeats = 1
 if __name__ == "__main__":

@@ -92,20 +92,6 @@ def MonteCarlo(cycles, H, masking_func, gibbs_k, model, basis, binary_gaus=1):
     DeltaHB = 2*torch.mean(E_diff[:, None]*dPsidhb, axis=0)
     DeltaW  = 2*torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
 
-   # dPsidvb = (basis-vb)
-   # dPsidhb = 1/(torch.exp(-hb-basis@W)+ 1)
-   # dPsidW  = basis[:, :, None]*dPsidhb[:, None, :]
-
-   # amplitudes = masking_func(dist_s)
-   # E_local, basis_var, E, weight = hamiltonian.local_energy(H, amplitudes)
-   # E_diff = E - torch.mean(E[weight!=0])
-   # E_diff[weight==0] = 0
-
-   # DeltaVB = torch.mean(E_diff[:, None]*dPsidvb, axis=0)
-   # DeltaHB = torch.mean(E_diff[:, None]*dPsidhb, axis=0)
-   # DeltaW  = torch.mean(E_diff[:, None, None]*dPsidW, axis=0)
-
-
     dE = torch.mean(E_local - E_mean)
     stats = {
         'E_mean'  : E_mean,
@@ -145,6 +131,7 @@ def find_min_energy(
     epochs,
     learning_rate,
     adapt,
+    basis,
     binary_gaus=1,
     verbose = False) -> stats_dict:
     vn = len(model.visual_bias)
@@ -162,12 +149,6 @@ def find_min_energy(
         'amps'     : torch.zeros((epochs, H.shape[0]))
     }
     
-    basis = hamiltonian.create_basis(
-        len(model.visual_bias),
-        dtype = model.precision,
-        device = model.device
-    )
-
     adapt_func = adapt['func']
     vv = prev_vv = adapt['gamma']
     hv = prev_hv = adapt['gamma']

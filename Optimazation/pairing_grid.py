@@ -15,20 +15,21 @@ pairing_results_grid = {
     "gamma" : np.array([0.184, 0.2875, 0.542])
 }
 
+
 run_options = {
-    "epochs"      : 100,
+    "epochs"      : 1000,
     "monte_carlo" : {
-        "type"   : 5,
+        "type"   : 2,
         "cycles" : 50_000
     },
     "learning_rate"     : None,
     "adaptive_function" : adaptives.nop
     }
 
-n_particles = 2; P = 3
+n_particles = 5; P = 10
 machine_options = {
     "visual_n" : P,
-    "hidden_n" : 2*P,
+    "hidden_n" :17,
     "precision" : torch.float64,
     "device" : torch.device('cuda')
 }
@@ -39,16 +40,14 @@ basis = hamiltonian.create_basis(
     machine_options['device']
 )
 
-eps = -1; g = -2; 
+eps = -0.3; g = 0;
 H = hamiltonian.pairing_hamiltonian(
     basis,
-    P,
     n_particles,
     eps,
     g
 )
 
-print(H)
 
 model_options = {
     "name" : "Pairing",
@@ -67,7 +66,7 @@ true_val = hamiltonian.ground_state(H)
 
 resolution = 1
 search_x = np.linspace(0.8, 0.95, resolution)
-search_y = np.linspace(2, 0.05, resolution)
+search_y = np.linspace(0.00551, 0.05, resolution)
 repeats = 1
 if __name__ == "__main__":
     if not False:
