@@ -1,5 +1,4 @@
 from typing import Any, Union
-from numpy._typing import _UnknownType
 import torch
 import warnings
 import matplotlib.pyplot as plt
@@ -17,7 +16,7 @@ def run(
     run_name        : str = "",
     log             : bool = True,
     verbose         : bool = False
-    ) -> Union[str, dict[str, _UnknownType]]:
+    ):
 
     vn        = machine_options["visual_n"]
     hn        = machine_options["hidden_n"]

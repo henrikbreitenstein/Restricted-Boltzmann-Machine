@@ -176,7 +176,7 @@ def pairing_hamiltonian(basis, n, eps, g):
         dim=-1
     )
     B_1 = -0.5*g*(diff==2)
-    H = eps*torch.diagflat(B_0) + B_1
+    H = 2*eps*torch.diagflat(B_0) + B_1
     for i in mask_non:
         H[:, i] = 0
         H[i, :] = 0

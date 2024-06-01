@@ -24,12 +24,16 @@ run_options = {
     "adaptive_function" : adaptives.nop
     }
 
+<<<<<<< HEAD
 n_particles = 16
+=======
+n_particles = 4
+>>>>>>> 47e567d4ae63f126a70bc45649a148559fa6b47c
 machine_options = {
     "visual_n" : n_particles,
     "hidden_n" : n_particles,
     "precision" : torch.float64,
-    "device" : torch.device('cuda')
+    "device" : None#torch.device('cuda')
 }
 basis = hamiltonian.create_basis(
     n_particles,
@@ -37,7 +41,11 @@ basis = hamiltonian.create_basis(
     machine_options['device']
 )
 
+<<<<<<< HEAD
 eps = -2 ; V=0; W = -0
+=======
+eps = 1 ; V=-3; W = 0
+>>>>>>> 47e567d4ae63f126a70bc45649a148559fa6b47c
 model_options = {
     "name" : "Lipkin",
     "hamiltonian" : hamiltonian.lipkin_local,
@@ -63,7 +71,11 @@ true_val = hamiltonian.ground_state(H)
 
 resolution = 1
 search_x = np.linspace(0.1, 0.04, resolution)
+<<<<<<< HEAD
 search_y = np.linspace(0.005, 0.05, resolution)
+=======
+search_y = np.linspace(2, 0.05, resolution)
+>>>>>>> 47e567d4ae63f126a70bc45649a148559fa6b47c
 repeats = 1
 
 if __name__ == "__main__":
